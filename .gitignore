@@ -1,0 +1,126 @@
+# =========================
+# Build directories
+# =========================
+build/
+Build/
+cmake-build-*/
+out/
+bin/
+lib/
+
+# =========================
+# CMake
+# =========================
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+CTestTestfile.cmake
+Makefile
+install_manifest.txt
+*.cmake
+
+# =========================
+# C++ / CUDA compiled files
+# =========================
+*.o
+*.obj
+*.lo
+*.la
+*.al
+*.so
+*.so.*
+*.dll
+*.dylib
+*.a
+*.lib
+*.out
+*.exe
+*.exp
+*.pdb
+*.idb
+
+# CUDA
+*.cubin
+*.fatbin
+*.ptx
+*.nvvp
+*.nsys-rep
+*.qdrep
+*.sqlite
+*.ncu-rep
+
+# =========================
+# Debug / profiling
+# =========================
+gmon.out
+vgcore.*
+callgrind.out.*
+cachegrind.out.*
+
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+venv/
+.venv/
+env/
+ENV/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# =========================
+# Editors / IDEs
+# =========================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# =========================
+# Logs
+# =========================
+*.log
+
+# =========================
+# Model weights / binaries
+# =========================
+weights/
+checkpoints/
+models/
+*.bin
+*.safetensors
+*.onnx
+*.engine
+
+# =========================
+# Generated outputs
+# =========================
+tokens.bin
+outputs/
+generated/
+results/
+
+# =========================
+# Testing / temp
+# =========================
+tmp/
+temp/
+.cache/
+
+# =========================
+# Custom
+# =========================
