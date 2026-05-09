@@ -2,22 +2,9 @@
 #include <cfloat>
 
 #include "reduction.h"
+#include "../include/cuda_utils.cuh"
 
 #define BLOCK_SIZE 1024
-
-__device__ float warp_reduce_sum(float val) {
-    for(int offset = warpSize / 2; offset > 0; offset /= 2) {
-        val += __shfl_xor_sync(0xffffffff, val, offset);
-    }
-    return val;
-}
-
-__device__ float warp_reduce_max(float val) {
-    for(int offset = warpSize / 2; offset > 0; offset /= 2) {
-        val = fmaxf(val, __shfl_xor_sync(0xffffffff, val, offset));
-    }
-    return val;
-}
 
 __global__ void reduce_sum(float* input, float* output, int N) {
     extern __shared__ float sdata[];

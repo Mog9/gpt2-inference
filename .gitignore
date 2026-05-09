@@ -124,7 +124,8 @@ temp/
 # =========================
 # Custom
 # =========================
+tests/
 inf
 reduction_test
 matmul_test
-tests/
+softmax_test
