@@ -129,3 +129,4 @@ inf
 reduction_test
 matmul_test
 softmax_test
+layernorm_test

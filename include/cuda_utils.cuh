@@ -1,6 +1,4 @@
 #pragma once
-
-#include <cuda_runtime.h>
 #include <cfloat>
 
 __device__ inline float warp_reduce_sum(float val) {
