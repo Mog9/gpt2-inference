@@ -133,3 +133,4 @@ layernorm_test
 linear_test
 qkv_test
 view
+scores
