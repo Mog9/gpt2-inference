@@ -131,3 +131,4 @@ matmul_test
 softmax_test
 layernorm_test
 linear_test
+qkv_test
