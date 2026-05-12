@@ -125,15 +125,4 @@ temp/
 # Custom
 # =========================
 tests/
-inf
-reduction_test
-matmul_test
-softmax_test
-layernorm_test
-linear_test
-qkv_test
-view
-scores
-output
-merge
-output_proj
+run/
