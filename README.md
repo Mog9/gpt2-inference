@@ -2,9 +2,9 @@
 
 CUDA implementations of core transformer inference kernels and attention pipeline components written from scratch in C++/CUDA.
 
-The current focus of the project is building a complete GPT-style transformer inference pipeline from low-level CUDA primitives upward, including custom GEMM kernels, normalization, softmax, multi-head attention, tensor views, and transformer projections.
+The current focus of the project is building a complete GPT-style transformer inference pipeline from low-level CUDA primitives upward, including custom GEMM kernels, normalization, softmax, multi-head attention, tensor views, transformer projections, residual paths, and feed-forward networks.
 
-The project is currently at the stage where a full multi-head causal self-attention forward pass is working end-to-end in CUDA.
+The project is currently at the stage where both the transformer attention subsystem and transformer MLP subsystem are functioning end-to-end in CUDA.
 
 ## Kernels Implemented
 
@@ -16,6 +16,9 @@ Numerically stable row-wise softmax kernels for attention probability computatio
 
 ### LayerNorm
 Custom LayerNorm implementations using reduction-based mean and variance computation.
+
+### GELU
+Transformer-style GELU activation kernel using the tanh approximation formulation used in GPT-2.
 
 ### Reduction Primitives
 Warp-level and block-level CUDA reductions used internally for normalization and softmax operations.
@@ -30,7 +33,7 @@ Built a reusable linear operation on top of tiled GEMM with optional bias suppor
 Used for:
 - QKV projection
 - output projection
-- future MLP layers
+- MLP projections
 
 ---
 
@@ -114,9 +117,53 @@ This mixes information learned across all attention heads back into the transfor
 
 ---
 
+## Residual Connections
+Implemented residual add kernels for GPT-style skip connections after attention and MLP blocks.
+
+Current residual form:
+
+```text
+x = x + block_output
+```
+
+---
+
+## Transformer GELU Activation
+Implemented GPT-2 style GELU activation using the tanh approximation formulation:
+
+```text
+0.5x(1 + tanh(...))
+```
+
+used inside transformer feed-forward networks.
+
+---
+
+## Transformer MLP Block
+Implemented full GPT-style feed-forward network pipeline:
+
+```text
+linear_up
+-> GELU
+-> linear_down
+-> residual_add
+```
+
+using transformer dimensions:
+
+```text
+[seq_len, 768]
+-> [seq_len, 3072]
+-> [seq_len, 768]
+```
+
+---
+
 # Current Status
 
-The project currently supports a full multi-head causal self-attention forward pipeline in CUDA including:
+The project currently supports:
+
+### Multi-Head Causal Self-Attention
 - fused QKV projection
 - head splitting
 - QKᵀ attention scores
@@ -125,6 +172,13 @@ The project currently supports a full multi-head causal self-attention forward p
 - attention @ V
 - head merging
 - output projection
+- residual add
+
+### Transformer Feed-Forward Network (MLP)
+- linear up projection
+- GELU activation
+- linear down projection
+- residual add
 
 ---
 
