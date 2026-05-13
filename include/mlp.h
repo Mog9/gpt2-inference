@@ -1,6 +1,7 @@
 #pragma once
 
 void launch_mlp(
+
     float* input,
 
     float* up_weight,
@@ -12,7 +13,6 @@ void launch_mlp(
     float* up_proj,
     float* gelu_out,
     float* down_proj,
-    float* output,
 
     int seq_len,
     int hidden_dim
