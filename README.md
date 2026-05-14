@@ -1,10 +1,10 @@
 # GPT-2 CUDA Inference Engine
 
-CUDA implementations of core transformer inference kernels and attention pipeline components written from scratch in C++/CUDA.
+CUDA implementations of core transformer inference kernels and transformer runtime components written from scratch in C++/CUDA.
 
-The current focus of the project is building a complete GPT-style transformer inference pipeline from low-level CUDA primitives upward, including custom GEMM kernels, normalization, softmax, multi-head attention, tensor views, transformer projections, residual paths, and feed-forward networks.
+The current focus of the project is building a complete GPT-style transformer inference runtime from low-level CUDA primitives upward, including custom GEMM kernels, normalization, softmax, multi-head attention, transformer blocks, embeddings, and feed-forward networks.
 
-The project is currently at the stage where both the transformer attention subsystem and transformer MLP subsystem are functioning end-to-end in CUDA.
+The project is currently at the stage where a complete GPT-style transformer block and embedding pipeline are functioning end-to-end in CUDA.
 
 ## Kernels Implemented
 
@@ -20,6 +20,9 @@ Custom LayerNorm implementations using reduction-based mean and variance computa
 ### GELU
 Transformer-style GELU activation kernel using the tanh approximation formulation used in GPT-2.
 
+### Embedding Lookup
+CUDA embedding gather kernel for token and positional embeddings used as transformer input generation.
+
 ### Reduction Primitives
 Warp-level and block-level CUDA reductions used internally for normalization and softmax operations.
 
@@ -34,6 +37,7 @@ Used for:
 - QKV projection
 - output projection
 - MLP projections
+- logits projection
 
 ---
 
@@ -146,7 +150,6 @@ Implemented full GPT-style feed-forward network pipeline:
 linear_up
 -> GELU
 -> linear_down
--> residual_add
 ```
 
 using transformer dimensions:
@@ -159,11 +162,57 @@ using transformer dimensions:
 
 ---
 
+## Full Transformer Block
+Implemented full GPT-style transformer block execution:
+
+```text
+LayerNorm
+-> Multi-Head Causal Self-Attention
+-> Residual Add
+-> LayerNorm
+-> MLP
+-> Residual Add
+```
+
+including attention, normalization, residual routing, and feed-forward execution inside a single transformer layer runtime.
+
+---
+
+## Embedding Lookup Pipeline
+Implemented GPT-2 style token and positional embedding lookup:
+
+```text
+token_embedding[token_id]
++
+positional_embedding[position]
+```
+
+which converts integer token ids into transformer hidden-state vectors:
+
+```text
+[token_ids]
+    ->
+[seq_len, hidden_dim]
+```
+
+used as input to transformer blocks.
+
+---
+
 # Current Status
 
 The project currently supports:
 
-### Multi-Head Causal Self-Attention
+### Transformer Runtime Components
+- embedding lookup
+- transformer block execution
+- multi-head causal self-attention
+- transformer MLP execution
+- residual routing
+- layer normalization
+- output projection
+
+### GPT-Style Attention Pipeline
 - fused QKV projection
 - head splitting
 - QKᵀ attention scores
@@ -172,9 +221,8 @@ The project currently supports:
 - attention @ V
 - head merging
 - output projection
-- residual add
 
-### Transformer Feed-Forward Network (MLP)
+### GPT-Style Feed-Forward Pipeline
 - linear up projection
 - GELU activation
 - linear down projection
