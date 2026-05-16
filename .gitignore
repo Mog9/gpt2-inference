@@ -100,7 +100,7 @@ ENV/
 # =========================
 weights/
 checkpoints/
-models/
+# models/
 *.bin
 *.safetensors
 *.onnx
@@ -126,3 +126,5 @@ temp/
 # =========================
 tests/
 run/
+data/
+scripts/

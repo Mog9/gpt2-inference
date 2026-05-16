@@ -59,17 +59,41 @@ void launch_transformer_block(
 
     for(int h = 0; h < num_heads; h++) {
 
-        QKVHeadView view = create_qkv_head_view(qkv, seq_len, hidden_dim, num_heads, h);
+        QKVHeadView view = create_qkv_head_view(
+                qkv,
+                seq_len,
+                hidden_dim,
+                num_heads,
+                h
+            );
 
         float* head_out = heads + h * seq_len * head_dim;
 
-        launch_attention_scores(view, scores);
+        float* head_scores = scores + h * seq_len * seq_len;
 
-        launch_scale_mask(scores, seq_len, head_dim);
+        launch_attention_scores(
+            view,
+            head_scores
+        );
 
-        launch_softmax(scores, scores, seq_len, seq_len);
+        launch_scale_mask(
+            head_scores,
+            seq_len,
+            head_dim
+        );
 
-        launch_attention_output(scores, view, head_out);
+        launch_softmax(
+            head_scores,
+            head_scores,
+            seq_len,
+            seq_len
+        );
+
+        launch_attention_output(
+            head_scores,
+            view,
+            head_out
+        );
     }
 
     launch_merge_heads(heads, merged, seq_len, num_heads, head_dim);
