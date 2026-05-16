@@ -13,16 +13,16 @@
 #include "../include/gpt2_loader.h"
 #include "../include/gpt2_forward.h"
 
-int sample_next_token(const std::vector<float>& logits,const std::vector<int>& generated,int seq_len,int vocab_size,float temperature=0.8f,int top_k=40,float top_p=0.9f,float repetition_penalty=1.2f) {
+int sample_next_token(const std::vector<float>& logits,const std::vector<int>& generated,int seq_len,int vocab_size,float temperature=0.0f,int top_k=1,float top_p=1.0f,float repetition_penalty=1.0f){
     int offset=(seq_len-1)*vocab_size;
     std::vector<std::pair<float,int>> scores;
     scores.reserve(vocab_size);
 
-    for(int i=0;i<vocab_size;i++) {
+    for(int i=0;i<vocab_size;i++){
         float logit=logits[offset+i];
 
-        for(int prev:generated) {
-            if(prev==i) {
+        for(int prev:generated){
+            if(prev==i){
                 if(logit>0.0f)
                     logit/=repetition_penalty;
                 else
@@ -38,7 +38,7 @@ int sample_next_token(const std::vector<float>& logits,const std::vector<int>& g
         scores.begin(),
         scores.begin()+top_k,
         scores.end(),
-        [](const auto& a,const auto& b) {
+        [](const auto& a,const auto& b){
             return a.first>b.first;
         }
     );
@@ -49,7 +49,7 @@ int sample_next_token(const std::vector<float>& logits,const std::vector<int>& g
     std::vector<float> probs(top_k);
     float sum=0.0f;
 
-    for(int i=0;i<top_k;i++) {
+    for(int i=0;i<top_k;i++){
         probs[i]=std::exp(scores[i].first-max_logit);
         sum+=probs[i];
     }
@@ -60,10 +60,10 @@ int sample_next_token(const std::vector<float>& logits,const std::vector<int>& g
     float cumulative=0.0f;
     int cutoff=top_k;
 
-    for(int i=0;i<top_k;i++) {
+    for(int i=0;i<top_k;i++){
         cumulative+=probs[i];
 
-        if(cumulative>=top_p) {
+        if(cumulative>=top_p){
             cutoff=i+1;
             break;
         }
@@ -93,7 +93,7 @@ int sample_next_token(const std::vector<float>& logits,const std::vector<int>& g
     return scores[sampled_idx].second;
 }
 
-int main() {
+int main(){
     GPT2Config config;
     GPT2Weights weights;
 
@@ -120,8 +120,19 @@ int main() {
     cudaMalloc(&buffers.mlp_down,config.max_seq_len*config.hidden_dim*sizeof(float));
     cudaMalloc(&buffers.logits,config.max_seq_len*config.vocab_size*sizeof(float));
 
-    while(true) {
-        std::string prompt = "The history of artificial intelligence began in antiquity with myths...";
+    buffers.kv_cache.resize(config.num_layers);
+
+    size_t kv_cache_size=config.max_seq_len*config.hidden_dim*sizeof(float);
+
+    for(int i=0;i<config.num_layers;i++){
+        cudaMalloc(&buffers.kv_cache[i].k_cache,kv_cache_size);
+        cudaMalloc(&buffers.kv_cache[i].v_cache,kv_cache_size);
+        cudaMemset(buffers.kv_cache[i].k_cache,0,kv_cache_size);
+        cudaMemset(buffers.kv_cache[i].v_cache,0,kv_cache_size);
+    }
+
+    while(true){
+        std::string prompt="The history of artificial intelligence began in antiquity with myths...";
         std::cout<<"\n> ";
 
         if(prompt=="exit")
@@ -140,50 +151,70 @@ int main() {
 
         file>>j;
 
-        std::vector<int> tokens=
-            j.get<std::vector<int>>();
-
+        std::vector<int> tokens=j.get<std::vector<int>>();
         std::vector<int> generated;
 
-        int max_new_tokens=1; //low because of profile, test
+        int max_new_tokens=512;
+
         std::cout<<"\nGPT2:\n";
 
-        auto start=
-            std::chrono::high_resolution_clock::now();
+        auto start=std::chrono::high_resolution_clock::now();
 
-        for(int step=0;step<max_new_tokens;step++) {
-            int seq_len=tokens.size();
+        int prompt_seq_len=tokens.size();
 
-            int* d_tokens;
+        int* d_prompt_tokens;
 
-            cudaMalloc(
-                &d_tokens,
-                seq_len*sizeof(int)
-            );
+        cudaMalloc(
+            &d_prompt_tokens,
+            prompt_seq_len*sizeof(int)
+        );
+
+        cudaMemcpy(
+            d_prompt_tokens,
+            tokens.data(),
+            prompt_seq_len*sizeof(int),
+            cudaMemcpyHostToDevice
+        );
+
+        gpt2_forward(
+            d_prompt_tokens,
+            weights,
+            buffers,
+            prompt_seq_len,
+            config
+        );
+
+        cudaFree(d_prompt_tokens);
+
+        for(int step=0;step<max_new_tokens;step++){
+
+            int current_token=tokens.back();
+
+            int* d_token;
+
+            cudaMalloc(&d_token,sizeof(int));
 
             cudaMemcpy(
-                d_tokens,
-                tokens.data(),
-                seq_len*sizeof(int),
+                d_token,
+                &current_token,
+                sizeof(int),
                 cudaMemcpyHostToDevice
             );
 
             gpt2_forward(
-                d_tokens,
+                d_token,
                 weights,
                 buffers,
-                seq_len,
+                1,
                 config
             );
 
-            std::vector<float> h_logits(
-                seq_len*config.vocab_size
-            );
+            std::vector<float> h_logits(config.vocab_size);
 
             cudaMemcpy(
                 h_logits.data(),
                 buffers.logits,
-                seq_len*config.vocab_size*sizeof(float),
+                config.vocab_size*sizeof(float),
                 cudaMemcpyDeviceToHost
             );
 
@@ -191,14 +222,14 @@ int main() {
                 sample_next_token(
                     h_logits,
                     generated,
-                    seq_len,
+                    1,
                     config.vocab_size
                 );
 
             generated.push_back(next_token);
             tokens.push_back(next_token);
 
-            cudaFree(d_tokens);
+            cudaFree(d_token);
 
             if(next_token==50256)
                 break;
@@ -207,8 +238,7 @@ int main() {
                 break;
         }
 
-        auto end=
-            std::chrono::high_resolution_clock::now();
+        auto end=std::chrono::high_resolution_clock::now();
 
         float seconds=
             std::chrono::duration<float>(
@@ -218,25 +248,25 @@ int main() {
         float tok_per_sec=
             generated.size()/seconds;
 
-        std::ofstream out(
-            "data/generated_tokens.json"
-        );
+        std::ofstream out("data/generated_tokens.json");
 
-        nlohmann::json out_json=
-            generated;
+        nlohmann::json out_json=generated;
 
         out<<out_json;
 
         out.close();
 
-        system(
-            "python scripts/decode_token.py"
-        );
+        system("python scripts/decode_token.py");
 
         std::cout
             <<"\n\nTokens/sec: "
             <<tok_per_sec
             <<"\n";
+    }
+
+    for(auto& cache : buffers.kv_cache){
+        cudaFree(cache.k_cache);
+        cudaFree(cache.v_cache);
     }
 
     return 0;

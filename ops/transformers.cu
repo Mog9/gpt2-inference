@@ -3,8 +3,6 @@
 #include "../include/qkv_proj.h"
 #include "../include/qkv_view.h"
 #include "../include/attention_score.h"
-#include "../include/scale_mask.h"
-#include "../include/softmax.h"
 #include "../include/attention_output.h"
 #include "../include/merge_heads.h"
 #include "../include/output_projection.h"
@@ -46,47 +44,75 @@ void launch_transformer_block(
     float* mlp_gelu,
     float* mlp_down,
 
+    float* k_cache,
+    float* v_cache,
+
+    int cache_pos,
+
     int seq_len,
     int hidden_dim,
     int num_heads
 ) {
 
-    int head_dim = hidden_dim / num_heads;
+    int head_dim =
+        hidden_dim / num_heads;
 
-    launch_layernorm(input,ln1_out,ln1_gamma,ln1_beta, seq_len, hidden_dim,1e-5f);
+    launch_layernorm(
+        input,
+        ln1_out,
+        ln1_gamma,
+        ln1_beta,
+        seq_len,
+        hidden_dim,
+        1e-5f
+    );
 
-    launch_qkv_projection(ln1_out, qkv_weight, qkv_bias, qkv, seq_len, hidden_dim);
+    launch_qkv_projection(
+        ln1_out,
+        qkv_weight,
+        qkv_bias,
+        qkv,
+        seq_len,
+        hidden_dim
+    );
+    
+    cudaMemcpy(
+        k_cache+(cache_pos*hidden_dim),
+        qkv+hidden_dim,
+        hidden_dim*sizeof(float),
+        cudaMemcpyDeviceToDevice
+    );
 
+    cudaMemcpy(
+        v_cache+(cache_pos*hidden_dim),
+        qkv+(2*hidden_dim),
+        hidden_dim*sizeof(float),
+        cudaMemcpyDeviceToDevice
+    );
+    
     for(int h = 0; h < num_heads; h++) {
 
-        QKVHeadView view = create_qkv_head_view(
-                qkv,
-                seq_len,
-                hidden_dim,
-                num_heads,
-                h
-            );
+        QKVHeadView view=create_qkv_head_view(
+            qkv,
+            k_cache,
+            v_cache,
+            cache_pos+1,
+            hidden_dim,
+            num_heads,
+            h
+        );
 
-        float* head_out = heads + h * seq_len * head_dim;
+        float* head_out =
+            heads +
+            h * seq_len * head_dim;
 
-        float* head_scores = scores + h * seq_len * seq_len;
+        float* head_scores =
+            scores +
+            h * seq_len * seq_len;
 
         launch_attention_scores(
             view,
             head_scores
-        );
-
-        launch_scale_mask(
-            head_scores,
-            seq_len,
-            head_dim
-        );
-
-        launch_softmax(
-            head_scores,
-            head_scores,
-            seq_len,
-            seq_len
         );
 
         launch_attention_output(
@@ -96,13 +122,40 @@ void launch_transformer_block(
         );
     }
 
-    launch_merge_heads(heads, merged, seq_len, num_heads, head_dim);
+    launch_merge_heads(
+        heads,
+        merged,
+        seq_len,
+        num_heads,
+        head_dim
+    );
 
-    launch_output_projection(merged, attn_proj_weight, attn_proj_bias, attn_proj, seq_len, hidden_dim);
+    launch_output_projection(
+        merged,
+        attn_proj_weight,
+        attn_proj_bias,
+        attn_proj,
+        seq_len,
+        hidden_dim
+    );
 
-    launch_residual_add(input, attn_proj, attn_residual, seq_len, hidden_dim);
+    launch_residual_add(
+        input,
+        attn_proj,
+        attn_residual,
+        seq_len,
+        hidden_dim
+    );
 
-    launch_layernorm(attn_residual, ln2_out,ln2_gamma,ln2_beta,seq_len,hidden_dim, 1e-5f);
+    launch_layernorm(
+        attn_residual,
+        ln2_out,
+        ln2_gamma,
+        ln2_beta,
+        seq_len,
+        hidden_dim,
+        1e-5f
+    );
 
     launch_mlp(
         ln2_out,

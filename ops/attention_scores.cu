@@ -1,49 +1,121 @@
 #include <cuda_runtime.h>
+#include <cfloat>
 #include <math.h>
 #include "../include/attention_score.h"
-#define TILE 16
 
-__global__ void attention_scores_kernel(QKVHeadView view, float* scores) {
-    int q_token = blockIdx.y * blockDim.y + threadIdx.y;
+__global__ void fused_attention_scores_softmax_kernel(
+    QKVHeadView view,
+    float* scores
+){
 
-    int k_token = blockIdx.x * blockDim.x + threadIdx.x;
+    int row=blockIdx.x;
 
-    if(q_token >= view.seq_len ||k_token >= view.seq_len)
+    int tid=threadIdx.x;
+
+    if(row>=view.seq_len)
         return;
 
-    float score = 0.0f;
-    for(int d = 0; d < view.head_dim; d++) {
+    extern __shared__ float shared[];
 
-        int q_idx = q_token * (3 * view.hidden_dim)
-            + (view.head_idx * view.head_dim)
-            + d;
+    float* logits=shared;
 
-        int k_idx = k_token * (3 * view.hidden_dim)
-            + view.hidden_dim
-            + (view.head_idx * view.head_dim)
-            + d;
+    float local_max=-FLT_MAX;
 
-        float q = view.qkv[q_idx];
+    for(int col=tid;col<view.seq_len;col+=blockDim.x){
 
-        float k =view.qkv[k_idx];
+        float score=0.0f;
 
-        score += q * k;
+        for(int d=0;d<view.head_dim;d++){
+
+            int q_idx=
+                row*view.hidden_dim+
+                (view.head_idx*view.head_dim)+
+                d;
+
+            int k_idx=
+                col*view.hidden_dim+
+                (view.head_idx*view.head_dim)+
+                d;
+
+            float q=view.q[q_idx];
+
+            float k=view.k_cache[k_idx];
+
+            score+=q*k;
+        }
+
+        score/=sqrtf((float)view.head_dim);
+
+        if(col>row)
+            score=-1e9f;
+
+        logits[col]=score;
+
+        local_max=fmaxf(local_max,score);
     }
 
-    scores[q_token * view.seq_len + k_token] = score;
+    __syncthreads();
+
+    for(int stride=blockDim.x/2;stride>0;stride/=2){
+        local_max=fmaxf(
+            local_max,
+            __shfl_down_sync(0xffffffff,local_max,stride)
+        );
+    }
+
+    __shared__ float max_val;
+
+    if(tid==0)
+        max_val=local_max;
+
+    __syncthreads();
+
+    float local_sum=0.0f;
+
+    for(int col=tid;col<view.seq_len;col+=blockDim.x){
+
+        float val=expf(logits[col]-max_val);
+
+        logits[col]=val;
+
+        local_sum+=val;
+    }
+
+    for(int stride=blockDim.x/2;stride>0;stride/=2){
+        local_sum+=__shfl_down_sync(
+            0xffffffff,
+            local_sum,
+            stride
+        );
+    }
+
+    __shared__ float sum_val;
+
+    if(tid==0)
+        sum_val=local_sum;
+
+    __syncthreads();
+
+    for(int col=tid;col<view.seq_len;col+=blockDim.x){
+
+        scores[row*view.seq_len+col]=
+            logits[col]/sum_val;
+    }
 }
 
 void launch_attention_scores(
     QKVHeadView view,
     float* scores
-) {
+){
 
-    dim3 block(TILE, TILE);
+    int threads=256;
 
-    dim3 grid(
-        (view.seq_len + TILE - 1) / TILE,
-        (view.seq_len + TILE - 1) / TILE
+    fused_attention_scores_softmax_kernel<<<
+        view.seq_len,
+        threads,
+        view.seq_len*sizeof(float)
+    >>>(
+        view,
+        scores
     );
-
-    attention_scores_kernel<<<grid, block>>>(view,scores);
 }

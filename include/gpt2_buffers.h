@@ -1,6 +1,13 @@
 #pragma once
+#include <cuda_runtime.h>
+#include <vector>
 
-struct GPT2Buffers {
+struct KVCache{
+    float* k_cache;
+    float* v_cache;
+};
+
+struct GPT2Buffers{
     float* hidden_states_1;
     float* hidden_states_2;
     float* ln1_out;
@@ -15,4 +22,5 @@ struct GPT2Buffers {
     float* mlp_gelu;
     float* mlp_down;
     float* logits;
+    std::vector<KVCache> kv_cache;
 };

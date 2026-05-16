@@ -6,23 +6,25 @@
 
 void gpt2_forward(
     int* token_ids,
-
     GPT2Weights& weights,
     GPT2Buffers& buffers,
-
     int seq_len,
     const GPT2Config& config
-) {
+){
+
     launch_embedding_lookup(
         token_ids,
         weights.token_embedding_table,
         weights.positional_embedding_table,
         buffers.hidden_states_1,
-        seq_len, config.hidden_dim
+        seq_len,
+        config.hidden_dim
     );
 
-    for(int layer = 0; layer < config.num_layers; layer++) {
-        TransformerBlockWeights& block = weights.blocks[layer];
+    for(int layer=0;layer<config.num_layers;layer++){
+
+        TransformerBlockWeights& block=
+            weights.blocks[layer];
 
         launch_transformer_block(
             buffers.hidden_states_1,
@@ -59,31 +61,41 @@ void gpt2_forward(
             buffers.mlp_gelu,
             buffers.mlp_down,
 
+            buffers.kv_cache[layer].k_cache,
+            buffers.kv_cache[layer].v_cache,
+
+            seq_len -1,
             seq_len,
             config.hidden_dim,
             config.num_heads
         );
 
-        float* temp = buffers.hidden_states_1;
+        float* temp=
+            buffers.hidden_states_1;
 
-        buffers.hidden_states_1 = buffers.hidden_states_2;
-        buffers.hidden_states_2 = temp;
+        buffers.hidden_states_1=
+            buffers.hidden_states_2;
+
+        buffers.hidden_states_2=
+            temp;
     }
 
     launch_layernorm(
         buffers.hidden_states_1,
         buffers.hidden_states_2,
-
         weights.final_ln_gamma,
         weights.final_ln_beta,
-
-        seq_len, config.hidden_dim, 1e-5f
+        seq_len,
+        config.hidden_dim,
+        1e-5f
     );
 
     launch_linear(
         buffers.hidden_states_2,
-        weights.lm_head_weight, nullptr,
-        buffers.logits, seq_len,
+        weights.lm_head_weight,
+        nullptr,
+        buffers.logits,
+        seq_len,
         config.hidden_dim,
         config.vocab_size
     );
