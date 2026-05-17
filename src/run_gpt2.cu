@@ -132,7 +132,7 @@ int main(){
     }
 
     while(true){
-        std::string prompt="The history of artificial intelligence began in antiquity with myths...";
+        std::string prompt = "The history of artificial intelligence began in antiquity with myths stories and mechanical automata Early researchers in computer science explored symbolic reasoning search algorithms neural networks and statistical learning methods";
         std::cout<<"\n> ";
 
         if(prompt=="exit")
