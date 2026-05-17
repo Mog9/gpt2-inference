@@ -178,7 +178,7 @@ Inference:
 CUDA FP32
 
 Peak Throughput:
-~120 tokens/sec
+~190+ tokens/sec
 ```
 
 ---
